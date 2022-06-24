@@ -1,0 +1,8 @@
+*.iml
+target
+*.log
+.idea
+*.versionsBackup
+**/build/**
+**/node_modules/
+**/dist/
