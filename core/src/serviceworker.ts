@@ -1,5 +1,4 @@
-export {}
-declare var self: ServiceWorkerGlobalScope;
+const sw = self as ServiceWorkerGlobalScope & typeof globalThis
 
 // defaults
 let debug = false;
@@ -11,13 +10,13 @@ let tokenUrl = '/token';
 const handleInstall = async () => {
     console.log('service worker installed');
 
-    await self.skipWaiting();
+    await sw.skipWaiting();
 };
 
 const handleActivate = () => {
     debugLog('service worker activated');
 
-    return self.clients.claim();
+    return sw.clients.claim();
 };
 
 let accessToken: string;
@@ -102,10 +101,10 @@ function debugLog(message?: any, ...optionalParams: any[]): void {
     }
 }
 
-self.addEventListener('install', handleInstall);
-self.addEventListener('activate', handleActivate);
-self.addEventListener('fetch', handleFetch);
-self.addEventListener('message', (event) => {
+sw.addEventListener('install', handleInstall);
+sw.addEventListener('activate', handleActivate);
+sw.addEventListener('fetch', handleFetch);
+sw.addEventListener('message', (event) => {
     debugLog('SW got a message: ', event, accessToken, new Date().toISOString());
 });
 
