@@ -43,8 +43,8 @@ user -> frontend: browse
 hacker -> frontend: <font color=red>inject evil code
 frontend -> authserv: authorize
 authserv --> frontend: redirect + authorization code
-frontend [#red]--> hacker: <font color=red>authorization code + code_verifier
-hacker [#red]-> bff: <font color=red>authorization code + challenge
+frontend [#red]--> hacker: <font color=red>authorization code
+hacker [#red]-> bff: <font color=red>authorization code
 bff [#red]-> authserv: <font color=red>/token
 authserv --[#red]> bff: <font color=red>token
 bff [#red]--> hacker: <font color=red>httponly cookie
