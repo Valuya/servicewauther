@@ -1,5 +1,3 @@
-declare const self: Window
-
 const KEEPALIVE_INTERVAL_MS = 10000;
 
 export const registerServiceWorker = async () => {

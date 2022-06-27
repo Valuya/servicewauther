@@ -2,17 +2,15 @@
   "compilerOptions": {
     "target": "es2020",
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": true,
+    "isolatedModules": false,
     "strict": true,
     "module": "ES2020",
     "outDir": "./dist",
     "lib": [
       "es2020",
-      "dom",
-      "webworker"
+      "dom"
     ],
-    "moduleResolution": "node",
-    "skipLibCheck": true
+    "moduleResolution": "node"
   },
   "include": [
     "src/**.ts"

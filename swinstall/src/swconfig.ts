@@ -1,4 +1,1 @@
-export {}
-declare var debug: boolean;
-
-debug = true;
+let debug = true;
