@@ -1,0 +1,54 @@
+@startuml
+title Authorization Code Flow Fully Managed By Service Worker
+actor user as "User"
+actor hacker as "<font color=red>Vile Hacker"
+participant app as "Application"
+database serviceworker as "Service Worker"
+participant backend as "Backend"
+participant authserv as "Authentication server"
+
+user -> app: browse
+serviceworker -> authserv: authorize
+authserv --> serviceworker: redirect + authorization code
+serviceworker -> authserv: /token
+authserv --> serviceworker: token
+app -> serviceworker: rest call
+serviceworker -> backend: rest call with token
+
+newpage API exploit by XSS
+user -> app: browse
+hacker [#red]-> app: <font color=red>inject evil code
+note left of serviceworker
+   XSS doesn't work here
+   serviceworker = script on the server
+end note
+serviceworker -> authserv: authorize
+authserv --> serviceworker: redirect to app + authorization code
+serviceworker -> authserv: /token
+authserv --> serviceworker: token
+'authserv --> serviceworker: token
+app -> serviceworker: store token
+app -> serviceworker: rest call
+serviceworker -> backend: rest call with token
+app [#red]-> serviceworker: <font color=red>rogue rest call
+serviceworker [#red]-> backend: <font color=red>☠ ️evil rest call with stolen token  ☠
+note across
+  Game over ☹
+end note
+
+newpage Token Theft with XSS
+note across
+  Security comparable with BFF/Proxy (httponly cookie) flow:
+  * storage is safe, hacker can't steal stored token
+  (because service workers aren't vulnerable to XSS, as the script needs to come from a web server and can't be injected)
+  * but stealing the authorization is possible and make all authenticated API calls possible
+  * this solution does offer a full front-end, SPA option and removes the complexity of a BFF
+end note
+note across
+  This solution offers the same level of protection as a web worker, but has additional advantages:
+  * Service workers are designed to be a kind of proxy server
+  * SSO: there is one service worker per page (or base URL), even for multiple apps on a page, even on multiple tabs.
+  * This also means that refreshing of the tokens is done centrally, which solves some race conditions that web workers would introduce.
+end note
+
+@enduml

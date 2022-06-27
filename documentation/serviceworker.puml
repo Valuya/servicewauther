@@ -1,0 +1,16 @@
+@startuml
+title Authorization Code Flow Fully Managed By Service Worker
+actor user as "User"
+participant app as "Application"
+database serviceworker as "Service Worker"
+participant backend as "Backend"
+participant authserv as "Authentication server"
+
+user -> app: browse
+serviceworker -> authserv: authorize
+authserv --> serviceworker: redirect + authorization code
+serviceworker -> authserv: /token
+authserv --> serviceworker: token
+app -> serviceworker: rest call
+serviceworker -> backend: rest call with token
+@enduml

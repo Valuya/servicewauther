@@ -1,0 +1,47 @@
+@startuml
+title Token in Local/Session Storage, Happy Flow
+actor user as "User"
+actor hacker as "<font color=red>Vile Hacker"
+participant app as "Application"
+database localstorage as "Local Storage"
+participant backend as "Backend"
+participant authserv as "Authentication server"
+
+user -> app: browse
+app -> authserv: authorize
+authserv --> app: redirect to app + authorization code
+app -> authserv: /token
+authserv --> app: token
+app -> localstorage: store token
+app -> backend: rest call with token
+
+newpage API exploit by XSS
+user -> app: browse
+hacker [#red]-> app: <font color=red>inject evil code
+app -> authserv: authorize
+authserv --> app: redirect to app + authorization code
+app -> authserv: /token
+authserv --> app: token
+app -> localstorage: store token
+app -> backend: rest call with token
+app [#red]-> localstorage: <font color=red>rogue rest call
+localstorage [#red]-> backend: <font color=red>☠ ️evil rest call with stolen token  ☠
+note across
+  Game over ☹
+end note
+
+newpage Token Theft with XSS
+user -> app: browse
+hacker [#red]-> app: <font color=red>inject evil code
+app -> authserv: authorize
+authserv --> app: redirect to app + authorization code
+app -> authserv: /token
+authserv --> app: token
+app -> localstorage: store token
+app [#red]--> hacker: <font color=red>here is your token
+app -> backend: rest call with token
+hacker [#red]-> backend: <font color=red>☠ ️evil rest call with stolen token  ☠
+note across
+  Game over ☹
+end note
+@enduml

@@ -1,0 +1,34 @@
+@startuml
+title API exploit by XSS
+actor user as "User"
+actor hacker as "<font color=red>Vile Hacker"
+participant app as "Application"
+database tokenholder as "Token Holder"
+participant backend as "Backend"
+participant authserv as "Authentication server"
+
+note across
+   "Token Holder" can be:
+   * BFF
+   * Local/Session storage
+   * Service Worker
+   * any creative storage on the frontend: closure, shared worker, ...
+end note
+
+user -> app: browse
+hacker [#red]-> app: <font color=red>inject evil code
+tokenholder -> authserv: authorize
+authserv --> tokenholder: redirect to app + authorization code
+tokenholder -> authserv: /token
+authserv --> tokenholder: token
+'authserv --> serviceworker: token
+app -> tokenholder: store token
+app -> tokenholder: rest call
+tokenholder -> backend: rest call with token
+app [#red]-> tokenholder: <font color=red>rogue rest call
+tokenholder [#red]-> backend: <font color=red>☠ ️evil rest call with stolen token  ☠
+note across
+  Game over ☹
+end note
+
+@enduml

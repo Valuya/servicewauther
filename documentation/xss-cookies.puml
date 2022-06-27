@@ -1,0 +1,69 @@
+@startuml
+title Token in BFF or Proxy, Happy Flow
+actor user as "User"
+actor hacker as "<font color=red>Attacker"
+participant frontend as "Frontend"
+participant bff as "Proxy/BFF"
+database db as "Safe store"
+participant backend as "Resource server"
+participant authserv as "Authentication server"
+
+user -> frontend: browse
+frontend -> authserv: authorize
+authserv --> frontend: redirect + authorization code
+frontend -> bff: authorization code
+bff -> authserv: /token
+authserv --> bff: token
+bff --> frontend: httponly cookie
+bff -> db: store token
+frontend -> bff: rest call
+bff -> backend: rest call with token
+
+newpage API exploit by XSS
+user -> frontend: browse
+hacker -> frontend: inject evil code
+frontend -> authserv: authorize
+authserv --> frontend: redirect + authorization code
+frontend -> bff: authorization code
+bff -> authserv: /token
+authserv --> bff: token
+bff -> db: store token
+bff --> frontend: httponly cookie
+frontend -> bff: rest call (with cookie)
+bff -> backend: rest call with token
+
+frontend [#red]-> bff: <font color=red>rogue rest call
+bff [#red]-> backend: <font color=red>☠ ️evil rest call with stolen token  ☠
+note across
+  Game over ☹
+end note
+
+newpage Baking a Cookie with XSS
+user -> frontend: browse
+hacker -> frontend: <font color=red>inject evil code
+frontend -> authserv: authorize
+authserv --> frontend: redirect + authorization code
+frontend [#red]--> hacker: <font color=red>authorization code + code_verifier
+hacker [#red]-> bff: <font color=red>authorization code + challenge
+bff [#red]-> authserv: <font color=red>/token
+authserv --[#red]> bff: <font color=red>token
+bff [#red]--> hacker: <font color=red>httponly cookie
+note across
+  This first cookie gets stolen. This allows calling whatever endpoints. User doesn't see that, as we start the authentication step from scratch.
+  Game over ☹
+end note
+frontend [#red]-> frontend: <font color=red>restart (redirect to /)
+frontend -> authserv: authorize
+note right
+  No login screen,
+  session still present.
+end note
+authserv --> frontend: redirect + authorization code
+frontend -> bff: authorization code
+bff -> authserv: /token
+authserv --> bff: token
+bff -> db: store token
+bff --> frontend: httponly cookie
+frontend -> bff: rest call (with cookie)
+bff -> backend: rest call with token
+@enduml
