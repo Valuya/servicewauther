@@ -1,6 +1,4 @@
-/// <reference no-default-lib="true"/>
 /// <reference lib="dom" />
-/// <reference lib="es2020" />
 
 const KEEPALIVE_INTERVAL_MS = 10000;
 
