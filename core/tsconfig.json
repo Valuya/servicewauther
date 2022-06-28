@@ -1,21 +1,15 @@
 {
   "compilerOptions": {
-    "target": "es2020",
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": false,
-    "strict": true,
-    "module": "ES2020",
-    "outDir": "./dist",
+    "noImplicitAny": true,
+    "module": "es2020",
+    "target": "es2020",
+    "allowJs": true,
     "lib": [
       "es2020",
       "webworker"
     ],
     "moduleResolution": "node"
   },
-  "include": [
-    "src/**.ts"
-  ],
-  "exclude": [
-    "node_modules/**/*"
-  ]
+  "files": ["src/serviceworker.ts"]
 }

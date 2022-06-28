@@ -1,11 +1,16 @@
-const sw = self as ServiceWorkerGlobalScope & typeof globalThis
+/// <reference lib="webworker" />
+
+import {OidcClient, SigninResponse} from 'oidc-client-ts';
+import {ServiceWautherConfig} from './serviceWautherConfig';
+
+const sw = self as unknown as ServiceWorkerGlobalScope
 
 // defaults
-let debug = false;
-let redirectUriRegexps = [/^\/myapp\/silent-refresh.html/];
-let resourceUrlIncludeRegexps = [/^\/myapp\/api\//];
-let resourceUrlExcludeRegexps = [/^\/myapp\/api\/config\//];
-let tokenUrl = '/token';
+declare var serviceWautherConfig: ServiceWautherConfig;
+importScripts('swconfig.js');
+
+let oidcClientPromise = initOidcClient();
+let signinResponse: SigninResponse;
 
 const handleInstall = async () => {
     console.log('service worker installed');
@@ -19,24 +24,23 @@ const handleActivate = () => {
     return sw.clients.claim();
 };
 
-let accessToken: string;
-
-
-const handleFetch = (event: FetchEvent) => {
+const handleFetch = async (event: FetchEvent) => {
     const request: Request = event.request;
     const url = new URL(request.url);
 
     debugLog("fetch ", url.pathname);
 
-    if (isTokenUrl(url)) {
+    if (await isTokenUrl(url)) {
+        debugLog('Token request ', url);
         fetchToken(request, event);
     } else {
         if (isRedirectUrl(url)) {
-            console.log('AUTHORIZATION CODE: ', url.searchParams.get('code'));
+            debugLog('AUTHORIZATION CODE: ', url.searchParams.get('code'));
+            signinResponse = await (await oidcClientPromise).processSigninResponse(request.url);
         }
         if (isResourceUrl(url)) {
             debugLog("Intercepted request*** ", url);
-            if (accessToken) {
+            if (signinResponse) {
                 debugLog('Adding token to request')
                 fetchWithBearer(event);
             } else {
@@ -60,7 +64,6 @@ const fetchToken = (request: Request, event: any) => {
 const generateTokenResponse = async (response: Response) => {
     const clonedResponse = response.clone();
     const content = await response.json();
-    accessToken = content['access_token'];
     content['access_token'] = '<HIDDEN-BY-SERVICE-WORKER>';
     content['refresh_token'] = '<HIDDEN-BY-SERVICE-WORKER>';
     // const refreshToken: string = json['refresh_token'];
@@ -73,6 +76,7 @@ const generateTokenResponse = async (response: Response) => {
 const fetchWithBearer = (event: any) => {
     const request: Request = event.request;
     const modifiedHeaders = new Headers(request.headers);
+    const accessToken = signinResponse.access_token;
     modifiedHeaders.set('Authorization', 'Bearer ' + accessToken);
 
     const modifiedRequestInit: RequestInit = {headers: modifiedHeaders};
@@ -82,21 +86,44 @@ const fetchWithBearer = (event: any) => {
 }
 
 function isResourceUrl(url: URL) {
-    return resourceUrlIncludeRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
-        && !resourceUrlExcludeRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
+    return serviceWautherConfig.resourceUrlIncludeRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
+        && !serviceWautherConfig.resourceUrlExcludeRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
 }
 
-function isTokenUrl(url: URL) {
-    return url.pathname.endsWith(tokenUrl);
+async function isTokenUrl(url: URL) {
+    let metadata = await (await oidcClientPromise).metadataService.getMetadata();
+    return url.pathname === metadata.token_endpoint;
 }
 
 function isRedirectUrl(url: URL) {
-    return redirectUriRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
+    return serviceWautherConfig.redirectUriRegexps.some(urlRegexp => urlRegexp.exec(url.pathname))
         && url.searchParams.has('code');
 }
 
+function initOidcClient(): Promise<OidcClient> {
+    let oidcClient = new OidcClient(serviceWautherConfig.settings);
+    let signinRequestParams = {};
+    let signinRequestPromise = oidcClient.createSigninRequest(signinRequestParams);
+    let signoutRequestParams = {};
+    let signoutRequestPromise = oidcClient.createSignoutRequest(signoutRequestParams);
+    return Promise.all([signinRequestPromise, signoutRequestPromise])
+        .then(([signinRequest, signoutRequest]) => dispatchAuthReady(signinRequest.url, signoutRequest.url))
+        .then(_ => oidcClient);
+}
+
+async function dispatchAuthReady(signinUrl: string, signoutUrl: string) {
+    let clients = await sw.clients.matchAll();
+    for (const client of clients) {
+        client.postMessage({
+            type: 'AUTH_READY',
+            signinUrl: signinUrl,
+            signoutUrl: signoutUrl
+        });
+    }
+}
+
 function debugLog(message?: any, ...optionalParams: any[]): void {
-    if (debug) {
+    if (serviceWautherConfig.debug) {
         console.warn("***** ", message, optionalParams);
     }
 }
@@ -105,7 +132,6 @@ sw.addEventListener('install', handleInstall);
 sw.addEventListener('activate', handleActivate);
 sw.addEventListener('fetch', handleFetch);
 sw.addEventListener('message', (event) => {
-    debugLog('SW got a message: ', event, accessToken, new Date().toISOString());
+    debugLog('SW got a message: ', event, new Date().toISOString());
 });
 
-importScripts('swconfig.js');
