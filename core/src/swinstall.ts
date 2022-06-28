@@ -37,6 +37,14 @@ async function setupFrontendOidcEndpoints() {
     getFrontendOidcEndpointConfig$().then(frontendOidcEndpointConfig => {
         console.log('authorizeUrl = ', frontendOidcEndpointConfig.authorizeUrl);
         console.log('silentRefreshAuthorizeUrl = ', frontendOidcEndpointConfig.silentRefreshAuthorizeUrl);
+
+        if (frontendOidcEndpointConfig.silentRefreshAuthorizeUrl) {
+            var silentRefreshIframe = document.createElement('iframe');
+            silentRefreshIframe.setAttribute('id', 'silentrefresh');
+
+            document.body.appendChild(silentRefreshIframe);
+            silentRefreshIframe.setAttribute('src', frontendOidcEndpointConfig.silentRefreshAuthorizeUrl);
+        }
     });
 }
 

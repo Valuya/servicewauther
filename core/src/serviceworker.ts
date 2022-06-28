@@ -105,7 +105,7 @@ const isRedirectUrl = (url: URL) => {
 };
 
 const initOAuth2Client = () => {
-    let clientSettings = Object.assign({}, serviceWautherConfig.oidcSettings);
+    const clientSettings = Object.assign({}, serviceWautherConfig.oidcSettings);
     clientSettings.discoveryEndpoint = clientSettings.discoveryEndpoint || clientSettings.server + '/.well-known/openid-configuration';
     return new OAuth2Client(clientSettings);
 };
@@ -115,18 +115,17 @@ const initAuthorizeParams = async (): Promise<AuthorizeParams> => {
 
     // let endSessionEndpointUrl = oidcClient.getEndpoint('end_session_endpoint');
 
-    let authorizeParams = {
+    const authorizeParams = {
         redirectUri: serviceWautherConfig.redirectUri,
         codeVerifier: codeVerifier
     };
-    let silentRefreshAuthorizeParams = {
+    const silentRefreshAuthorizeParams = {
         redirectUri: serviceWautherConfig.silentRefreshRedirectUri,
         codeVerifier: codeVerifier
     };
-    let authorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(authorizeParams);
-    let silentRefreshAuthorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(silentRefreshAuthorizeParams);
-    let result0 = await Promise.all([authorizeUriPromise, silentRefreshAuthorizeUriPromise]);
-    const [authorizeUri, silentRefreshAuthorizeUri] = result0;
+    const silentRefreshAuthorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(silentRefreshAuthorizeParams);
+    const authorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(authorizeParams);
+    const [silentRefreshAuthorizeUri, authorizeUri] = await Promise.all([silentRefreshAuthorizeUriPromise, authorizeUriPromise]);
 
     return ({
             codeVerifier: codeVerifier,
