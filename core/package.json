@@ -9,7 +9,7 @@
     "build:prod": "webpack --mode=production --node-env=production"
   },
   "dependencies": {
-    "@badgateway/oauth2-client": "^2.0.1-4.0",
+    "@panva/oauth4webapi": "^1.1.0",
     "tslib": "2.4.0"
   },
   "devDependencies": {

@@ -1,9 +1,10 @@
 /// <reference lib="webworker" />
 
 import {ServiceWautherConfig} from './serviceWautherConfig';
-import {OAuth2Client, OAuth2Token} from '@badgateway/oauth2-client';
 import {AuthorizeParams} from './authorizeParams';
 import {FrontendOidcEndpointConfig} from './frontendOidcEndpointConfig';
+import * as oauth from '@panva/oauth4webapi'
+import {AuthorizationServer} from '@panva/oauth4webapi';
 
 const sw = self as unknown as ServiceWorkerGlobalScope
 
@@ -29,9 +30,10 @@ const handleFetch = async (event: FetchEvent) => {
 
     debugLog("fetch ", url.pathname);
 
+    let oidcTooling = await oidcToolingPromise;
     if (url.pathname === '/oidc-setup') {
         debugLog('OIDC setup request ', url);
-        let frontendOidcEndpointConfig = getFrontendOidcEndpointConfig(await authorizeParamsPromise);
+        let frontendOidcEndpointConfig = await getFrontendOidcEndpointConfig();
         let oidcSetupResponse = new Response(JSON.stringify(frontendOidcEndpointConfig), {headers: {"Content-type": "application/json"}});
         event.respondWith(oidcSetupResponse);
     } else if (await isTokenUrl(url)) {
@@ -40,15 +42,40 @@ const handleFetch = async (event: FetchEvent) => {
     } else if (isRedirectUrl(url)) {
         debugLog('AUTHORIZATION CODE: ', url.searchParams.get('code'));
         // (await authorizeParamsPromise)
-        oAuth2Token = await oidcClient.authorizationCode.getTokenFromCodeRedirect(request.url, {
-            codeVerifier: (await authorizeParamsPromise).codeVerifier,
-            redirectUri: getUrlWithoutParams(request.url)
-        });
+        let client = {client_id: serviceWautherConfig.clientId};
+        const params = oauth.validateAuthResponse(oidcTooling.authorizationServer, client, url, oauth.expectNoState)
+        if (oauth.isOAuth2Error(params)) {
+            console.log('error', params)
+            throw new Error() // Handle OAuth 2.0 redirect error
+        }
+
+        let urlWithoutParams = getUrlWithoutParams(request.url);
+        const response = await oauth.authorizationCodeGrantRequest(
+            oidcTooling.authorizationServer,
+            client,
+            params,
+            urlWithoutParams,
+            oidcTooling.authorizeParams.codeVerifier,
+        )
+
+        let challenges: oauth.WWWAuthenticateChallenge[] | undefined
+        if ((challenges = oauth.parseWwwAuthenticateChallenges(response))) {
+            for (const challenge of challenges) {
+                console.log('challenge', challenge)
+            }
+            throw new Error() // Handle www-authenticate challenges as needed
+        }
+
+        const result = await oauth.processAuthorizationCodeOpenIDResponse(oidcTooling.authorizationServer, client, response)
+        if (oauth.isOAuth2Error(result)) {
+            console.log('error', result)
+            throw new Error() // Handle OAuth 2.0 response body error
+        }
     } else if (isResourceUrl(url)) {
         debugLog("Intercepted request*** ", url);
-        if (oAuth2Token) {
+        if (oidcTooling.accessToken) {
             debugLog('Adding token to request')
-            fetchWithBearer(event);
+            await fetchWithBearer(event);
         } else {
             debugLog("no token holder :-(")
         }
@@ -78,10 +105,10 @@ const generateTokenResponse = async (response: Response) => {
     const modifiedContentJson = JSON.stringify(content);
     return new Response(modifiedContentJson, {headers: new Headers(clonedResponse.headers)});
 };
-const fetchWithBearer = (event: any) => {
+const fetchWithBearer = async (event: any) => {
     const request: Request = event.request;
     const modifiedHeaders = new Headers(request.headers);
-    const accessToken = oAuth2Token.accessToken;
+    const accessToken = (await oidcToolingPromise).accessToken;
     modifiedHeaders.set('Authorization', 'Bearer ' + accessToken);
 
     const modifiedRequestInit: RequestInit = {headers: modifiedHeaders};
@@ -96,7 +123,7 @@ const isResourceUrl = (url: URL) => {
 };
 
 const isTokenUrl = async (url: URL) => {
-    return url.pathname === await oidcClient.getEndpoint('tokenEndpoint');
+    return url.pathname === (await oidcToolingPromise).authorizationServer.token_endpoint;
 };
 
 const isRedirectUrl = (url: URL) => {
@@ -104,47 +131,48 @@ const isRedirectUrl = (url: URL) => {
         && url.searchParams.has('code');
 };
 
-const initOAuth2Client = () => {
-    const clientSettings = Object.assign({}, serviceWautherConfig.oidcSettings);
-    clientSettings.discoveryEndpoint = clientSettings.discoveryEndpoint || clientSettings.server + '/.well-known/openid-configuration';
-    return new OAuth2Client(clientSettings);
-};
+const initAuthorizationServer = async (): Promise<AuthorizationServer> => {
+    const issuerUrl = new URL(serviceWautherConfig.issuerUrl);
+    return oauth.discoveryRequest(issuerUrl)
+        .then(response => oauth.processDiscoveryResponse(issuerUrl, response));
+}
 
 const initAuthorizeParams = async (): Promise<AuthorizeParams> => {
-    const codeVerifier = generateCodeVerifier();
+    const codeVerifier = oauth.generateRandomCodeVerifier()
 
-    // let endSessionEndpointUrl = oidcClient.getEndpoint('end_session_endpoint');
-
-    const authorizeParams = {
-        redirectUri: serviceWautherConfig.redirectUri,
-        codeVerifier: codeVerifier
-    };
-    const silentRefreshAuthorizeParams = {
-        redirectUri: serviceWautherConfig.silentRefreshRedirectUri,
-        codeVerifier: codeVerifier
-    };
-    const silentRefreshAuthorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(silentRefreshAuthorizeParams);
-    const authorizeUriPromise = oidcClient.authorizationCode.getAuthorizeUri(authorizeParams);
-    const [silentRefreshAuthorizeUri, authorizeUri] = await Promise.all([silentRefreshAuthorizeUriPromise, authorizeUriPromise]);
+    let authorizeUrl = await getAuthorizeUrl(codeVerifier, serviceWautherConfig.redirectUrl);
+    let silentRefreshAuthorizeUrl = await getAuthorizeUrl(codeVerifier, serviceWautherConfig.silentRefreshRedirectUrl);
 
     return ({
             codeVerifier: codeVerifier,
-            authorizeUri: authorizeUri,
-            silentRefreshAuthorizeUri: silentRefreshAuthorizeUri
+            authorizeUrl: authorizeUrl,
+            silentRefreshAuthorizeUrl: silentRefreshAuthorizeUrl
         }
     );
 };
 
-const getFrontendOidcEndpointConfig = (authorizeParams: AuthorizeParams): FrontendOidcEndpointConfig => ({
-    authorizeUrl: authorizeParams.authorizeUri,
-    silentRefreshAuthorizeUrl: authorizeParams.silentRefreshAuthorizeUri
-});
+const getAuthorizeUrl = async (codeVerifier: string, redirectUrl: string): Promise<string> => {
+    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier)
+    let oidcTooling = await oidcToolingPromise;
 
-function generateCodeVerifier() {
-    const emptyCodeVerifierArray = new Uint8Array(32);
-    const codeVerifierArray = crypto.getRandomValues(emptyCodeVerifierArray);
-    return btoa(String.fromCharCode(...codeVerifierArray));
-}
+    const authorizationUrl = new URL(oidcTooling.authorizationServer.authorization_endpoint);
+    authorizationUrl.searchParams.set('client_id', serviceWautherConfig.clientId);
+    authorizationUrl.searchParams.set('code_challenge', codeChallenge);
+    authorizationUrl.searchParams.set('code_challenge_method', 'S256');
+    authorizationUrl.searchParams.set('redirect_uri', redirectUrl);
+    authorizationUrl.searchParams.set('response_type', 'code');
+    authorizationUrl.searchParams.set('scope', 'openid email');
+
+    return authorizationUrl.toString();
+};
+
+const getFrontendOidcEndpointConfig = async (): Promise<FrontendOidcEndpointConfig> => {
+    let oidcTooling = await oidcToolingPromise;
+    return {
+        authorizeUrl: oidcTooling.authorizeParams.authorizeUrl,
+        silentRefreshAuthorizeUrl: oidcTooling.authorizeParams.silentRefreshAuthorizeUrl
+    }
+};
 
 function getUrlWithoutParams(url: string) {
     if (url.indexOf("?") < 0) {
@@ -159,9 +187,19 @@ function debugLog(message?: any, ...optionalParams: any[]): void {
     }
 }
 
-let oidcClient = initOAuth2Client();
-let authorizeParamsPromise = initAuthorizeParams();
-let oAuth2Token: OAuth2Token;
+interface OidcTooling {
+    accessToken?: string;
+    authorizationServer: AuthorizationServer;
+    authorizeParams: AuthorizeParams;
+}
+
+async function init(): Promise<OidcTooling> {
+    return {
+        authorizationServer: await initAuthorizationServer(),
+        authorizeParams: await initAuthorizeParams()
+    }
+}
+let oidcToolingPromise = init();
 
 sw.addEventListener('install', handleInstall);
 sw.addEventListener('activate', handleActivate);

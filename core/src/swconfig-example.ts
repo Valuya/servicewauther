@@ -9,5 +9,5 @@ let serviceWautherConfig: ServiceWautherConfig = {
         server: 'https://auth.mycompany.com',
         clientId: 'myclientid'
     },
-    redirectUri: 'https://myapp.mycompany.com/start'
+    redirectUrl: 'https://myapp.mycompany.com/start'
 };

@@ -1,5 +1,5 @@
 export interface AuthorizeParams {
     codeVerifier: string;
-    authorizeUri: string;
-    silentRefreshAuthorizeUri: string;
+    authorizeUrl: string;
+    silentRefreshAuthorizeUrl: string;
 }
