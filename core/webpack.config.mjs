@@ -38,8 +38,7 @@ export default [{
         outputModule: true,
     },
     entry: {
-        "swinstall": "./src/swinstall.ts",
-        "hello": "./src/hello.ts"
+        "swinstall": "./src/swinstall.ts"
     },
     output: {
         path: distDir,

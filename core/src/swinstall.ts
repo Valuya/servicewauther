@@ -1,14 +1,16 @@
 /// <reference lib="dom" />
 
+import {FrontendOidcEndpointConfig} from './frontendOidcEndpointConfig';
+
 const KEEPALIVE_INTERVAL_MS = 10000;
 
 export const registerServiceWorker = async () => {
     if ('serviceWorker' in navigator) {
         try {
             const registration = await navigator.serviceWorker.register('/serviceworker.js');
-            setupOidc();
             navigator.serviceWorker.ready.then(() => {
                 setupKeepalive();
+                setupFrontendOidcEndpoints();
             });
             return registration;
         } catch (error) {
@@ -31,15 +33,14 @@ const sendKeepalive = () => {
     });
 };
 
-let signinUrl;
-let signoutUrl;
-
-function setupOidc() {
-    navigator.serviceWorker.addEventListener('message', event => {
-        if (event.type === 'AUTH_READY') {
-            signinUrl = event.data.signinUrl;
-            signoutUrl = event.data.signoutUrl;
-            console.log('signinUrl = ', signinUrl);
-        }
-    })
+async function setupFrontendOidcEndpoints() {
+    getFrontendOidcEndpointConfig$().then(frontendOidcEndpointConfig => {
+        console.log('authorizeUrl = ', frontendOidcEndpointConfig.authorizeUrl);
+        console.log('silentRefreshAuthorizeUrl = ', frontendOidcEndpointConfig.silentRefreshAuthorizeUrl);
+    });
 }
+
+const getFrontendOidcEndpointConfig$ = (): Promise<FrontendOidcEndpointConfig> => {
+    return fetch("/oidc-setup")
+        .then(response => response.json());
+};

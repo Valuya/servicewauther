@@ -1,12 +1,14 @@
 /// <reference no-default-lib="true"/>
 /// <reference lib="es2020" />
 
-import {OidcClientSettings} from 'oidc-client-ts';
+import {ClientSettings} from '@badgateway/oauth2-client/dist/client';
 
 export interface ServiceWautherConfig {
     debug: boolean;
     redirectUriRegexps: RegExp[];
     resourceUrlIncludeRegexps: RegExp[];
     resourceUrlExcludeRegexps: RegExp[];
-    settings: OidcClientSettings;
+    oidcSettings: ClientSettings;
+    redirectUri: string,
+    silentRefreshRedirectUri?: string;
 }

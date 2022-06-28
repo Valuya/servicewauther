@@ -2,8 +2,6 @@
   "name": "@servicewauther/servicewauther",
   "version": "0.0.0",
   "description": "Servicewauther",
-
-
   "scripts": {
     "build": "npm run build:prod",
     "build-and-publish": "npm run build:dev && npm publish",
@@ -11,13 +9,11 @@
     "build:prod": "webpack --mode=production --node-env=production"
   },
   "dependencies": {
-    "oidc-client-ts": "^2.0.5",
+    "@badgateway/oauth2-client": "^2.0.1-4.0",
     "tslib": "2.4.0"
   },
   "devDependencies": {
-    "css-loader": "^6.7.1",
     "prettier": "^2.7.1",
-    "style-loader": "^3.3.1",
     "ts-loader": "^9.3.1",
     "typescript": "^4.6.4",
     "webpack": "^5.73.0",
